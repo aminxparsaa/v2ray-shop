@@ -5,6 +5,7 @@ V2Ray Config Shop - Telegram Bot
 
 import os
 import json
+import base64
 import logging
 import requests
 from datetime import datetime
@@ -38,12 +39,12 @@ logger = logging.getLogger(__name__)
 # Store user orders and admin state
 user_orders = {}
 admin_chat_id = None
-# Track which user is in "upload config" mode
 upload_mode = {}
+# Track pending payments waiting for image
+pending_payment = {}
 
 
 def get_github_headers():
-    """هدر GitHub API"""
     return {'Authorization': f'token {GITHUB_TOKEN}'}
 
 
@@ -73,10 +74,7 @@ def delete_config_from_github(path, sha):
     """حذف کانفیگ از GitHub"""
     try:
         url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{path}'
-        data = {
-            'message': f'Delete config: {path}',
-            'sha': sha
-        }
+        data = {'message': f'Delete config: {path}', 'sha': sha}
         response = requests.delete(url, headers=get_github_headers(), json=data)
         return response.status_code == 200
     except Exception as e:
@@ -87,15 +85,10 @@ def delete_config_from_github(path, sha):
 def upload_config_to_github(filename, content_dict):
     """آپلود کانفیگ به GitHub"""
     try:
-        import base64
         url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_CONFIGS_PATH}{filename}'
         content_json = json.dumps(content_dict, ensure_ascii=False, indent=2)
         content_bytes = base64.b64encode(content_json.encode('utf-8')).decode('utf-8')
-
-        data = {
-            'message': f'Add config: {filename}',
-            'content': content_bytes
-        }
+        data = {'message': f'Add config: {filename}', 'content': content_bytes}
         response = requests.put(url, headers=get_github_headers(), json=data)
         return response.status_code in [200, 201]
     except Exception as e:
@@ -118,7 +111,6 @@ def get_random_configs(count=5):
             url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{cfg["path"]}'
             response = requests.get(url, headers=get_github_headers())
             if response.status_code == 200:
-                import base64
                 file_content = response.json().get('content', '')
                 decoded = base64.b64decode(file_content).decode('utf-8')
                 result.append({
@@ -130,11 +122,51 @@ def get_random_configs(count=5):
     return result
 
 
+def config_to_vmess_link(config_data):
+    """تبدیل کانفیگ به لینک vmess://"""
+    try:
+        # Extract vmess config
+        outbounds = config_data.get('config', config_data).get('outbounds', [])
+        for outbound in outbounds:
+            if outbound.get('protocol') == 'vmess':
+                vmess_obj = {
+                    'v': '2',
+                    'ps': config_data.get('name', 'V2Ray Config'),
+                    'add': outbound['settings']['vnext'][0]['address'],
+                    'port': str(outbound['settings']['vnext'][0]['port']),
+                    'id': outbound['settings']['vnext'][0]['users'][0]['id'],
+                    'aid': str(outbound['settings']['vnext'][0]['users'][0].get('alterId', 0)),
+                    'net': outbound.get('streamSettings', {}).get('network', 'tcp'),
+                    'type': 'none',
+                    'host': '',
+                    'path': '',
+                    'tls': ''
+                }
+
+                # Stream settings
+                stream = outbound.get('streamSettings', {})
+                if stream.get('security') == 'tls':
+                    vmess_obj['tls'] = 'tls'
+                if stream.get('network') == 'ws':
+                    ws = stream.get('wsSettings', {})
+                    vmess_obj['path'] = ws.get('path', '')
+                    vmess_obj['host'] = ws.get('headers', {}).get('Host', '')
+
+                # Encode to base64
+                vmess_json = json.dumps(vmess_obj, ensure_ascii=False)
+                vmess_b64 = base64.b64encode(vmess_json.encode('utf-8')).decode('utf-8')
+                return f"vmess://{vmess_b64}"
+    except Exception as e:
+        logger.error(f"Error converting to vmess link: {e}")
+    return None
+
+
 # ==================== User Commands ====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """دستور /start"""
     user = update.effective_user
+    args = context.args
 
     # Main menu keyboard
     keyboard = [
@@ -143,6 +175,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("💬 پشتیبانی")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+    # Check if coming from payment page
+    if args and args[0].startswith('pay_'):
+        try:
+            order_id = int(args[0].split('_')[1])
+            pending_payment[user.id] = {
+                'order_id': order_id,
+                'step': 'waiting_image'
+            }
+
+            welcome_msg = (
+                f"👋 سلام {user.first_name}!\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📸 **رسید پرداخت خود را ارسال کنید**\n\n"
+                f"🔹 تصویر رسید واریزی را اینجا ارسال کنید\n"
+                f"🔹 پس از تأیید، کانفیگ‌ها برای شما ارسال می‌شود\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━"
+            )
+            await update.message.reply_text(welcome_msg, reply_markup=reply_markup, parse_mode='Markdown')
+            return
+        except (IndexError, ValueError):
+            pass
 
     welcome_msg = (
         f"👋 سلام {user.first_name}!\n\n"
@@ -153,6 +207,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔹 **پشتیبانی ۲۴ ساعته**\n"
         f"🔹 **تحویل فوری** پس از تأیید پرداخت\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📸 **برای خرید:**\n"
+        f"۱. از سایت خرید کنید\n"
+        f"۲. تصویر رسید واریزی را اینجا ارسال کنید\n"
+        f"۳. منتظر تأیید باشید\n\n"
         f"🔗 **سایت فروشگاه:**\n"
         f"https://psi-court-essays-sleeve.trycloudflare.com"
     )
@@ -162,10 +220,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """دستور /help"""
     help_msg = (
-        "📖 **راهنمای استفاده از ربات\n\n"
+        "📖 **راهنمای استفاده از ربات**\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "🛒 **خرید کانفیگ**\n"
-        "از سایت خرید کنید و رسید را ارسال کنید\n\n"
+        "📸 **ارسال رسید**\n"
+        "تصویر رسید واریزی را مستقیماً ارسال کنید\n\n"
         "📦 **پیگیری سفارش**\n"
         "وضعیت سفارش خود را بررسی کنید\n\n"
         "📋 **لیست کانفیگ‌ها**\n"
@@ -205,15 +263,14 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         status_msg = (
             "📦 **وضعیت سفارش**\n\n"
             "شما هنوز سفارشی ثبت نکرده‌اید.\n\n"
-            "از سایت خرید کنید و رسید را ارسال کنید.\n"
-            "🔗 https://psi-court-essays-sleeve.trycloudflare.com"
+            "📸 تصویر رسید واریزی را ارسال کنید."
         )
 
     await update.message.reply_text(status_msg, parse_mode='Markdown')
 
 
 async def configs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور /configs - لیست کانفیگ‌ها"""
+    """لیست کانفیگ‌ها"""
     configs = list_configs_from_github()
 
     if configs:
@@ -222,7 +279,7 @@ async def configs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += f"**{i}.** `{cfg['name']}`\n"
         msg += f"\n━━━━━━━━━━━━━━━━━━━━━━\n"
         msg += f"\n📊 تعداد کل: **{len(configs)}** کانفیگ"
-        msg += f"\n🛒 برای خرید از سایت دیدن کنید"
+        msg += f"\n🛒 برای خرید، رسید واریزی را ارسال کنید"
     else:
         msg = "📋 **لیست کانفیگ‌ها**\n\nهنوز کانفیگی اضافه نشده است."
 
@@ -233,7 +290,6 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """پشتیبانی"""
     await update.message.reply_text(
         "💬 **پشتیبانی**\n\n"
-        "برای ارتباط با پشتیبانی:\n"
         "🔹 تلگرام: @leili9772r\n"
         "🔹 ربات: @V2rayshopiran_bot",
         parse_mode='Markdown'
@@ -264,9 +320,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     confirm_msg = (
         "✅ **رسید پرداخت دریافت شد!**\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "⏳ **لطفاً صبر کنید...**\n\n"
         "پشتیبانی در اسرع وقت رسید شما را بررسی می‌کند.\n"
         "پس از تأیید، **۵ کانفیگ V2Ray** برای شما ارسال خواهد شد.\n\n"
-        "⏳ لطفاً صبر کنید...\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━"
     )
     await update.message.reply_text(confirm_msg, parse_mode='Markdown')
@@ -274,15 +330,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Notify admin
     if admin_chat_id:
         keyboard = [
-            [
-                InlineKeyboardButton("✅ تأیید و ارسال کانفیگ", callback_data=f"approve_{user.id}"),
-            ],
-            [
-                InlineKeyboardButton("❌ رد پرداخت", callback_data=f"reject_{user.id}")
-            ],
-            [
-                InlineKeyboardButton("📊 جزئیات کاربر", callback_data=f"details_{user.id}")
-            ]
+            [InlineKeyboardButton("✅ تأیید و ارسال کانفیگ", callback_data=f"approve_{user.id}")],
+            [InlineKeyboardButton("❌ رد پرداخت", callback_data=f"reject_{user.id}")],
+            [InlineKeyboardButton("📊 جزئیات کاربر", callback_data=f"details_{user.id}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -296,14 +346,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"━━━━━━━━━━━━━━━━━━━━━━"
         )
 
-        # Forward the photo to admin
         await context.bot.forward_message(
             chat_id=admin_chat_id,
             from_chat_id=update.effective_chat.id,
             message_id=update.message.message_id
         )
 
-        # Send approval buttons
         await context.bot.send_message(
             chat_id=admin_chat_id,
             text=admin_msg,
@@ -325,13 +373,9 @@ async def handle_text_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     text = update.message.text.strip()
 
-    # Cancel
     if text == '❌ انصراف':
         del upload_mode[user_id]
-        await update.message.reply_text(
-            "❌ **آپلود کانفیگ لغو شد.**",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("❌ **آپلود کانفیگ لغو شد.**", parse_mode='Markdown')
         return True
 
     # Try to parse JSON
@@ -346,11 +390,9 @@ async def handle_text_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return True
 
-    # Get filename
     filename = upload_mode[user_id].get('filename', '')
 
     if not filename:
-        # Ask for filename
         upload_mode[user_id]['config_data'] = config_data
         upload_mode[user_id]['waiting_for_filename'] = True
         await update.message.reply_text(
@@ -361,25 +403,18 @@ async def handle_text_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return True
 
-    # Upload to GitHub
     success = upload_config_to_github(filename, config_data)
-
     del upload_mode[user_id]
 
     if success:
         await update.message.reply_text(
             f"✅ **کانفیگ با موفقیت آپلود شد!**\n\n"
             f"📁 فایل: `{filename}`\n"
-            f"📦 مخزن: `{GITHUB_REPO}`\n\n"
-            f"🔗 https://github.com/{GITHUB_REPO}/blob/main/{GITHUB_CONFIGS_PATH}{filename}",
+            f"📦 مخزن: `{GITHUB_REPO}`",
             parse_mode='Markdown'
         )
     else:
-        await update.message.reply_text(
-            "❌ **خطا در آپلود کانفیگ!**\n\n"
-            "لطفاً دوباره تلاش کنید.",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("❌ **خطا در آپلود کانفیگ!**", parse_mode='Markdown')
 
     return True
 
@@ -393,19 +428,15 @@ async def handle_text_filename(update: Update, context: ContextTypes.DEFAULT_TYP
 
     filename = update.message.text.strip()
 
-    # Validate filename
     if not filename.endswith('.json'):
         await update.message.reply_text(
-            "❌ **نام فایل باید با .json تمام شود!**\n\n"
-            "مثال: `us-premium.json`",
+            "❌ **نام فایل باید با .json تمام شود!**\n\nمثال: `us-premium.json`",
             parse_mode='Markdown'
         )
         return True
 
-    # Upload to GitHub
     config_data = upload_mode[user_id]['config_data']
     success = upload_config_to_github(filename, config_data)
-
     del upload_mode[user_id]
 
     if success:
@@ -416,11 +447,7 @@ async def handle_text_filename(update: Update, context: ContextTypes.DEFAULT_TYP
             parse_mode='Markdown'
         )
     else:
-        await update.message.reply_text(
-            "❌ **خطا در آپلود کانفیگ!**\n\n"
-            "لطفاً دوباره تلاش کنید.",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("❌ **خطا در آپلود کانفیگ!**", parse_mode='Markdown')
 
     return True
 
@@ -429,22 +456,6 @@ async def handle_text_filename(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """پنل مدیریت ادمین"""
-    user_id = update.effective_user.id
-
-    # Check if user is admin (you can set specific admin IDs)
-    admin_ids = os.getenv('TELEGRAM_ADMIN_IDS', '').split(',')
-    admin_ids = [int(x.strip()) for x in admin_ids if x.strip().isdigit()]
-
-    # If no admin IDs set, first user to /setadmin is the admin
-    if not admin_ids and user_id != admin_chat_id:
-        await update.message.reply_text(
-            "⛔ **دسترسی غیرمجاز!**\n\n"
-            "فقط ادمین می‌تواند از این بخش استفاده کند.\n"
-            "ابتدا /setadmin را ارسال کنید.",
-            parse_mode='Markdown'
-        )
-        return
-
     keyboard = [
         [KeyboardButton("📊 آمار سایت"), KeyboardButton("📋 لیست کانفیگ‌ها")],
         [KeyboardButton("⬆️ آپلود کانفیگ"), KeyboardButton("🗑️ حذف کانفیگ")],
@@ -467,7 +478,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_list_configs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """لیست کانفیگ‌ها برای ادمین"""
+    """لیست کانفیگ‌ها"""
     configs = list_configs_from_github()
 
     if configs:
@@ -477,8 +488,7 @@ async def admin_list_configs(update: Update, context: ContextTypes.DEFAULT_TYPE)
             msg += f"   📁 `{cfg['path']}`\n"
             msg += f"   📦 حجم: {cfg['size']} بایت\n\n"
         msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        msg += f"📊 تعداد کل: **{len(configs)}** کانفیگ\n\n"
-        msg += "برای حذف از دکمه **🗑️ حذف کانفیگ** استفاده کنید."
+        msg += f"📊 تعداد کل: **{len(configs)}** کانفیگ"
     else:
         msg = "📋 **لیست کانفیگ‌ها**\n\nهنوز کانفیگی در مخزن وجود ندارد."
 
@@ -486,28 +496,19 @@ async def admin_list_configs(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def admin_delete_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """حذف کانفیگ - نمایش لیست"""
+    """حذف کانفیگ"""
     configs = list_configs_from_github()
 
     if not configs:
-        await update.message.reply_text(
-            "🗑️ **حذف کانفیگ**\n\nهنوز کانفیگی وجود ندارد.",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("🗑️ **حذف کانفیگ**\n\nهنوز کانفیگی وجود ندارد.", parse_mode='Markdown')
         return
 
-    # Create inline keyboard with configs
     keyboard = []
     for cfg in configs:
         keyboard.append([
-            InlineKeyboardButton(
-                f"🗑️ {cfg['name']}",
-                callback_data=f"delcfg_{cfg['sha']}_{cfg['name']}"
-            )
+            InlineKeyboardButton(f"🗑️ {cfg['name']}", callback_data=f"delcfg_{cfg['sha']}_{cfg['name']}")
         ])
-    keyboard.append([
-        InlineKeyboardButton("❌ انصراف", callback_data="cancel_delete")
-    ])
+    keyboard.append([InlineKeyboardButton("❌ انصراف", callback_data="cancel_delete")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -531,7 +532,10 @@ async def admin_upload_config(update: Update, context: ContextTypes.DEFAULT_TYPE
         "{\n"
         '  "name": "نام کانفیگ",\n'
         '  "description": "توضیحات",\n'
-        '  "config": { ... },\n'
+        '  "config": {\n'
+        '    "inbounds": [...],\n'
+        '    "outbounds": [...]\n'
+        "  },\n"
         '  "price": 50000,\n'
         '  "duration_days": 30,\n'
         '  "server_location": "آمریکا",\n'
@@ -539,11 +543,10 @@ async def admin_upload_config(update: Update, context: ContextTypes.DEFAULT_TYPE
         "}\n"
         "```\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "❌ برای انصراف دکمه زیر را بزنید.",
+        "❌ برای انصراف دکمه **❌ انصراف** را بزنید.",
         parse_mode='Markdown'
     )
 
-    # Set upload mode
     upload_mode[user_id] = {'mode': 'upload', 'waiting_for_filename': False}
 
 
@@ -596,24 +599,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if success:
             await query.edit_message_text(
-                text=f"✅ **کانفیگ حذف شد!**\n\n"
-                     f"📁 فایل: `{name}`\n"
-                     f"📦 مخزن: `{GITHUB_REPO}`",
+                text=f"✅ **کانفیگ حذف شد!**\n\n📁 فایل: `{name}`",
                 parse_mode='Markdown'
             )
         else:
-            await query.edit_message_text(
-                text="❌ **خطا در حذف کانفیگ!**\n\nلطفاً دوباره تلاش کنید.",
-                parse_mode='Markdown'
-            )
+            await query.edit_message_text("❌ **خطا در حذف کانفیگ!**", parse_mode='Markdown')
         return
 
-    # Cancel delete
     if data == 'cancel_delete':
-        await query.edit_message_text(
-            "❌ **حذف کانفیگ لغو شد.**",
-            parse_mode='Markdown'
-        )
+        await query.edit_message_text("❌ **حذف کانفیگ لغو شد.**", parse_mode='Markdown')
         return
 
     # Approve/Reject payment
@@ -628,7 +622,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if action == 'approve':
-        # Approve payment and send configs
         if user_id in user_orders:
             user_orders[user_id]['status'] = 'approved'
 
@@ -636,50 +629,66 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             configs = get_random_configs(5)
 
             if configs:
-                # Send configs to user
-                config_msg = (
-                    "🎉 **پرداخت شما تأیید شد!**\n\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"📦 **{len(configs)} کانفیگ V2Ray برای شما ارسال شد:**\n\n"
+                # Send welcome message first
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="🎉 **پرداخت شما تأیید شد!**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n📦 **کانفیگ‌های شما:**",
+                    parse_mode='Markdown'
                 )
 
+                # Send each config with both JSON and vmess link
                 for i, cfg in enumerate(configs, 1):
-                    config_text = json.dumps(cfg['config'], ensure_ascii=False)
-                    config_msg += f"**{i}. {cfg['name']}**\n"
-                    config_msg += f"```\n{config_text}\n```\n\n"
+                    vmess_link = config_to_vmess_link(cfg['config'])
 
-                config_msg += (
-                    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "📌 **نحوه استفاده:**\n"
-                    "1. اپلیکیشن V2Ray را نصب کنید\n"
-                    "2. هر کانفیگ را وارد کنید\n"
-                    "3. اتصال را فعال کنید\n"
-                    "4. از اینترنت آزاد لذت ببرید! 🚀\n\n"
-                    "💬 **پشتیبانی:** @leili9772r"
-                )
-
-                # Split message if too long (Telegram limit is 4096 chars)
-                if len(config_msg) > 4000:
-                    # Send configs one by one
+                    # Send config name
+                    cfg_header = f"**{i}. {cfg['name']}**"
                     await context.bot.send_message(
                         chat_id=user_id,
-                        text="🎉 **پرداخت شما تأیید شد!**\n\n📦 کانفیگ‌های شما:",
+                        text=cfg_header,
                         parse_mode='Markdown'
                     )
-                    for cfg in configs:
-                        config_text = json.dumps(cfg['config'], ensure_ascii=False)
-                        cfg_msg = f"**{cfg['name']}**\n```\n{config_text}\n```"
+
+                    # Send vmess link (if available)
+                    if vmess_link:
+                        vmess_msg = (
+                            f"🔗 **لینک vmess:**\n"
+                            f"```\n{vmess_link}\n```\n\n"
+                            f"📌 **نحوه استفاده:**\n"
+                            f"این لینک را کپی و در اپلیکیشن V2Ray وارد کنید"
+                        )
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=cfg_msg,
+                            text=vmess_msg,
                             parse_mode='Markdown'
                         )
-                else:
+
+                    # Send JSON config
+                    config_text = json.dumps(cfg['config'], ensure_ascii=False, indent=2)
+                    if len(config_text) > 3500:
+                        config_text = config_text[:3500] + "\n..."
+                    json_msg = f"📄 **فرمت JSON:**\n```json\n{config_text}\n```"
                     await context.bot.send_message(
                         chat_id=user_id,
-                        text=config_msg,
+                        text=json_msg,
                         parse_mode='Markdown'
                     )
+
+                # Final message
+                final_msg = (
+                    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "✅ **تمام کانفیگ‌ها ارسال شد!**\n\n"
+                    "📌 **نکات مهم:**\n"
+                    "🔹 از لینک vmess برای اتصال سریع استفاده کنید\n"
+                    "🔹 فرمت JSON برای تنظیم دستی است\n"
+                    "🔹 اگر مشکلی داشتید با @leili9772r تماس بگیرید\n\n"
+                    "🚀 **از اینترنت آزاد لذت ببرید!**\n\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━"
+                )
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=final_msg,
+                    parse_mode='Markdown'
+                )
 
                 # Update admin
                 await query.edit_message_text(
@@ -695,15 +704,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          "لطفاً با پشتیبانی تماس بگیرید: @leili9772r",
                     parse_mode='Markdown'
                 )
-                await query.edit_message_text(
-                    text="❌ **خطا:** کانفیگی برای ارسال موجود نیست.",
-                    parse_mode='Markdown'
-                )
         else:
             await query.edit_message_text("❌ سفارش یافت نشد.")
 
     elif action == 'reject':
-        # Reject payment
         if user_id in user_orders:
             await context.bot.send_message(
                 chat_id=user_id,
@@ -721,7 +725,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ سفارش یافت نشد.")
 
     elif action == 'details':
-        # Show order details
         if user_id in user_orders:
             order = user_orders[user_id]
             details_msg = (
@@ -755,8 +758,7 @@ async def set_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Admin chat ID set: {admin_chat_id}")
     else:
         await update.message.reply_text(
-            f"ℹ️ **ادمین قبلاً تنظیم شده است.**\n\n"
-            f"آیدی فعلی: `{admin_chat_id}`",
+            f"ℹ️ **ادمین قبلاً تنظیم شده است.**\n\nآیدی فعلی: `{admin_chat_id}`",
             parse_mode='Markdown'
         )
 
@@ -770,8 +772,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
-    # Check if user is in upload mode
     user_id = update.effective_user.id
+
+    # Check if user is in upload mode
     if user_id in upload_mode:
         if upload_mode[user_id].get('waiting_for_filename'):
             await handle_text_filename(update, context)
@@ -784,37 +787,26 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🛒 **خرید کانفیگ**\n\n"
             "برای خرید کانفیگ به سایت مراجعه کنید:\n"
-            "🔗 https://psi-court-essays-sleeve.trycloudflare.com",
+            "🔗 https://psi-court-essays-sleeve.trycloudflare.com\n\n"
+            "📸 پس از پرداخت، تصویر رسید را اینجا ارسال کنید.",
             parse_mode='Markdown'
         )
-
     elif text == "📦 پیگیری سفارش":
         await status_command(update, context)
-
     elif text == "📋 لیست کانفیگ‌ها":
         await configs_command(update, context)
-
     elif text == "ℹ️ راهنما":
         await help_command(update, context)
-
     elif text == "💬 پشتیبانی":
         await support_command(update, context)
-
     elif text == "📊 آمار سایت":
         await admin_stats(update, context)
-
-    elif text == "📋 لیست کانفیگ‌ها":
-        await admin_list_configs(update, context)
-
     elif text == "⬆️ آپلود کانفیگ":
         await admin_upload_config(update, context)
-
     elif text == "🗑️ حذف کانفیگ":
         await admin_delete_config(update, context)
-
     elif text == "🔄 همگام‌سازی با سایت":
         await admin_sync(update, context)
-
     elif text == "🏠 بازگشت به منوی اصلی":
         await start(update, context)
 
@@ -823,7 +815,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """اجرای ربات"""
-    # Create application
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Add handlers
@@ -843,7 +834,6 @@ def main():
     # Handle text messages (menu)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    # Start the bot
     print("🤖 ربات تلگرام شروع به کار کرد...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
