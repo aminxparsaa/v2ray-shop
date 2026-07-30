@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}مدیریت سفارشات - پنل مدیریت{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">
+    <i class="fas fa-shopping-bag me-2"></i>مدیریت سفارشات
+</h2>
+
+<div class="card">
+    <div class="card-body">
+        {% if orders %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>کاربر</th>
+                        <th>کانفیگ</th>
+                        <th>مبلغ</th>
+                        <th>وضعیت</th>
+                        <th>تاریخ ثبت</th>
+                        <th>تاریخ پرداخت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>{{ order.id }}</td>
+                        <td>{{ order.user.username }}</td>
+                        <td>{{ order.config.name }}</td>
+                        <td>{{ order.amount|toLocaleString }} تومان</td>
+                        <td>
+                            {% if order.status == 'pending' %}
+                                <span class="badge bg-warning">در انتظار</span>
+                            {% elif order.status == 'paid' %}
+                                <span class="badge bg-success">پرداخت شده</span>
+                            {% elif order.status == 'completed' %}
+                                <span class="badge bg-primary">تکمیل شده</span>
+                            {% else %}
+                                <span class="badge bg-danger">لغو شده</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ order.paid_at.strftime('%Y-%m-%d %H:%M') if order.paid_at else '-' }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('admin_order_status', order_id=order.id) }}"
+                                  class="d-inline">
+                                <select name="status" class="form-select form-select-sm d-inline-block w-auto"
+                                        onchange="this.form.submit()">
+                                    <option value="pending" {{ 'selected' if order.status == 'pending' }}>در انتظار</option>
+                                    <option value="paid" {{ 'selected' if order.status == 'paid' }}>پرداخت شده</option>
+                                    <option value="completed" {{ 'selected' if order.status == 'completed' }}>تکمیل شده</option>
+                                    <option value="cancelled" {{ 'selected' if order.status == 'cancelled' }}>لغو شده</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <p class="text-muted">هنوز سفارشی ثبت نشده است</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

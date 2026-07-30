@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}ثبت‌نام - فروشگاه V2Ray{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white text-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-user-plus me-2"></i>ثبت‌نام
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-user me-2"></i>نام کاربری
+                        </label>
+                        <input type="text" class="form-control" name="username" required
+                               placeholder="نام کاربری دلخواه" minlength="3">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-envelope me-2"></i>ایمیل
+                        </label>
+                        <input type="email" class="form-control" name="email" required
+                               placeholder="example@email.com">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-lock me-2"></i>رمز عبور
+                        </label>
+                        <input type="password" class="form-control" name="password" required
+                               placeholder="حداقل ۶ کاراکتر" minlength="6">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-lock me-2"></i>تکرار رمز عبور
+                        </label>
+                        <input type="password" class="form-control" name="confirm_password" required
+                               placeholder="رمز عبور را دوباره وارد کنید">
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-user-plus me-2"></i>ثبت‌نام
+                        </button>
+                    </div>
+                </form>
+
+                <hr>
+
+                <div class="text-center">
+                    <p class="mb-0">
+                        قبلا ثبت‌نام کرده‌اید؟
+                        <a href="{{ url_for('login') }}" class="text-decoration-none">وارد شوید</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

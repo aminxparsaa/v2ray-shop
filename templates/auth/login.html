@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}ورود - فروشگاه V2Ray{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white text-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-sign-in-alt me-2"></i>ورود
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-user me-2"></i>نام کاربری
+                        </label>
+                        <input type="text" class="form-control" name="username" required
+                               placeholder="نام کاربری خود را وارد کنید">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="fas fa-lock me-2"></i>رمز عبور
+                        </label>
+                        <input type="password" class="form-control" name="password" required
+                               placeholder="رمز عبور خود را وارد کنید">
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-sign-in-alt me-2"></i>ورود
+                        </button>
+                    </div>
+                </form>
+
+                <hr>
+
+                <div class="text-center">
+                    <p class="mb-0">
+                        حساب کاربری ندارید؟
+                        <a href="{{ url_for('register') }}" class="text-decoration-none">ثبت‌نام کنید</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

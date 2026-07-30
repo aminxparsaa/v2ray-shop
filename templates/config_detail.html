@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}{{ config.name }} - فروشگاه V2Ray{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Back Button -->
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary mb-4">
+            <i class="fas fa-arrow-right me-2"></i>بازگشت
+        </a>
+
+        <!-- Config Card -->
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">
+                    <i class="fas fa-server me-2"></i>{{ config.name }}
+                </h3>
+            </div>
+            <div class="card-body">
+                <!-- Description -->
+                <div class="mb-4">
+                    <h5><i class="fas fa-info-circle me-2"></i>توضیحات</h5>
+                    <p class="text-muted">{{ config.description or 'توضیحی ثبت نشده است' }}</p>
+                </div>
+
+                <!-- Details -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="detail-box p-3 bg-light rounded">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-map-marker-alt me-2"></i>موقعیت سرور
+                            </h6>
+                            <h4 class="mb-0">{{ config.server_location or 'نامشخص' }}</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="detail-box p-3 bg-light rounded">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-clock me-2"></i>مدت زمان اشتراک
+                            </h6>
+                            <h4 class="mb-0">{{ config.duration_days }} روز</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="detail-box p-3 bg-light rounded">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-box me-2"></i>موجودی
+                            </h6>
+                            <h4 class="mb-0">
+                                {% if config.stock > 0 %}
+                                    <span class="badge bg-success fs-5">{{ config.stock }} عدد</span>
+                                {% else %}
+                                    <span class="badge bg-danger fs-5">ناموجود</span>
+                                {% endif %}
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="detail-box p-3 bg-light rounded">
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-tag me-2"></i>قیمت
+                            </h6>
+                            <h3 class="text-primary mb-0">
+                                {{ config.price|toLocaleString }}
+                                <small class="text-muted">تومان</small>
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Purchase Section -->
+                <hr>
+                <div class="text-center py-3">
+                    {% if current_user.is_authenticated %}
+                        {% if config.stock > 0 %}
+                        <form method="POST" action="{{ url_for('create_order', config_id=config.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-success btn-lg px-5">
+                                <i class="fas fa-shopping-cart me-2"></i>خرید کانفیگ
+                            </button>
+                        </form>
+                        {% else %}
+                        <button class="btn btn-secondary btn-lg px-5" disabled>
+                            <i class="fas fa-times me-2"></i>موجود نیست
+                        </button>
+                        {% endif %}
+                    {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-warning btn-lg px-5">
+                        <i class="fas fa-sign-in-alt me-2"></i>برای خرید وارد شوید
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="card mt-4 shadow">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-check-circle me-2"></i>ویژگی‌های این کانفیگ
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i>سرعت بالا و پایدار</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i>بدون قطعی</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i>پشتیبانی ۲۴ ساعته</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i>سازگار با تمام دستگاه‌ها</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i>آپدیت خودکار</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i>امنیت بالا</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

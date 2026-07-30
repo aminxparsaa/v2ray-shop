@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{% if config %}ویرایش کانفیگ{% else %}افزودن کانفیگ{% endif %} - پنل مدیریت{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-{% if config %}edit{% else %}plus{% endif %} me-2"></i>
+                    {% if config %}ویرایش کانفیگ: {{ config.name }}{% else %}افزودن کانفیگ جدید{% endif %}
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">نام کانفیگ *</label>
+                            <input type="text" class="form-control" name="name" required
+                                   value="{{ config.name if config else '' }}"
+                                   placeholder="مثال: کانفیگ VIP آمریکا">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">قیمت (تومان) *</label>
+                            <input type="number" class="form-control" name="price" required
+                                   value="{{ config.price if config else '' }}"
+                                   placeholder="50000" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">توضیحات</label>
+                        <textarea class="form-control" name="description" rows="3"
+                                  placeholder="توضیحات کانفیگ...">{{ config.description if config else '' }}</textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">مدت زمان (روز)</label>
+                            <input type="number" class="form-control" name="duration_days"
+                                   value="{{ config.duration_days if config else 30 }}"
+                                   min="1" max="365">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">موقعیت سرور</label>
+                            <input type="text" class="form-control" name="server_location"
+                                   value="{{ config.server_location if config else '' }}"
+                                   placeholder="مثال: آمریکا">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">موجودی</label>
+                            <input type="number" class="form-control" name="stock"
+                                   value="{{ config.stock if config else 0 }}"
+                                   min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">کانفیگ V2Ray (JSON) *</label>
+                        <textarea class="form-control font-monospace" name="config_data" rows="10" required
+                                  placeholder='{"inbounds": [...], "outbounds": [...]}'>{{ config.config_data if config else '' }}</textarea>
+                        <div class="form-text">
+                            کانفیگ JSON را اینجا قرار دهید. از
+                            <a href="https://www.v2ray.com" target="_blank">سایت V2Ray</a>
+                            استفاده کنید.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="is_active"
+                                   id="isActive" {{ 'checked' if not config or config.is_active else '' }}>
+                            <label class="form-check-label" for="isActive">
+                                کانفیگ فعال باشد (قابل نمایش در سایت)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-save me-2"></i>
+                            {% if config %}ذخیره تغییرات{% else %}افزودن کانفیگ{% endif %}
+                        </button>
+                        <a href="{{ url_for('admin_configs') }}" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-times me-2"></i>انصراف
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
