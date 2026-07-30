@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}پرداخت سفارش #{{ order.id }} - فروشگاه V2Ray{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Header -->
+        <div class="card shadow mb-4">
+            <div class="card-header bg-warning text-dark text-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-credit-card me-2"></i>پرداخت سفارش #{{ order.id }}
+                </h4>
+            </div>
+            <div class="card-body text-center py-4">
+                <p class="text-muted mb-3">برای فعال‌سازی کانفیگ خود، مبلغ زیر را کارت به کارت واریز کنید</p>
+                <div class="display-6 text-primary fw-bold">
+                    {{ order.amount|toLocaleString }} تومان
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">کانفیگ: {{ order.config.name }}</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Info -->
+        <div class="card shadow mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-university me-2"></i>شماره کارت برای واریز
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="card bg-light py-4 mb-3">
+                    <div class="card-body">
+                        <h3 class="mb-3 ltr" id="cardNumber"
+                            style="font-family: monospace; letter-spacing: 3px; color: #333;">
+                            {{ card_number }}
+                        </h3>
+                        <button class="btn btn-primary btn-lg" onclick="copyCard()" id="copyBtn">
+                            <i class="fas fa-copy me-2"></i>کپی شماره کارت
+                        </button>
+                        <div class="mt-2" id="copyMsg" style="display:none;">
+                            <span class="text-success fw-bold">
+                                <i class="fas fa-check-circle me-1"></i>شماره کارت کپی شد!
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {% if bank_name %}
+                <div class="mb-2">
+                    <span class="badge bg-secondary fs-6">{{ bank_name }}</span>
+                </div>
+                {% endif %}
+
+                {% if shaba %}
+                <div class="mb-3">
+                    <small class="text-muted">شماره شبا: </small>
+                    <span class="ltr" style="font-family: monospace;">{{ shaba }}</span>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    مبلغ <strong>{{ order.amount|toLocaleString }} تومان</strong> را به شماره کارت بالا واریز کنید
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Receipt Button -->
+        <div class="card shadow mb-4">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-paper-plane fa-3x text-primary mb-3"></i>
+                <h4 class="mb-3">پرداخت انجام شد؟</h4>
+                <p class="text-muted mb-4">
+                    پس از واریز وجه، تصویر رسید پرداخت را از طریق ربات تلگرام ارسال کنید
+                </p>
+
+                <a href="https://t.me/V2rayshopiran_bot?start=pay_{{ order.id }}"
+                   target="_blank"
+                   class="btn btn-info btn-lg px-5 py-3"
+                   onclick="markAsPaid()">
+                    <i class="fab fa-telegram-plane me-2"></i>ارسال تصویر رسید به ربات تلگرام
+                </a>
+
+                <div class="mt-4">
+                    <a href="{{ url_for('order_detail', order_id=order.id) }}" class="text-muted">
+                        <i class="fas fa-arrow-right me-1"></i>بازگشت به جزئیات سفارش
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Steps -->
+        <div class="card shadow">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-list-ol me-2"></i>مراحل پرداخت
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4 mb-3">
+                        <div class="step-circle bg-primary text-white mx-auto mb-2">۱</div>
+                        <h6>کپی شماره کارت</h6>
+                        <small class="text-muted">دکمه کپی را بزنید</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="step-circle bg-warning text-dark mx-auto mb-2">۲</div>
+                        <h6>واریز وجه</h6>
+                        <small class="text-muted">از اپ بانک یا عابر بانک</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="step-circle bg-success text-white mx-auto mb-2">۳</div>
+                        <h6>ارسال رسید</h6>
+                        <small class="text-muted">تصویر رسید را در تلگرام ارسال کنید</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyCard() {
+    var cardText = '{{ card_number }}'.replace(/[^0-9]/g, '');
+    navigator.clipboard.writeText(cardText).then(function() {
+        var btn = document.getElementById('copyBtn');
+        var msg = document.getElementById('copyMsg');
+        btn.innerHTML = '<i class="fas fa-check me-2"></i>کپی شد!';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-success');
+        msg.style.display = 'block';
+        setTimeout(function() {
+            btn.innerHTML = '<i class="fas fa-copy me-2"></i>کپی شماره کارت';
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-primary');
+            msg.style.display = 'none';
+        }, 3000);
+    });
+}
+
+function markAsPaid() {
+    // Optional: you can make an AJAX call here to mark the order as paid
+    // For now, we just redirect to Telegram
+}
+</script>
+
+<style>
+.step-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+</style>
+{% endblock %}

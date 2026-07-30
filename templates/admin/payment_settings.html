@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}تنظیمات پرداخت - پنل مدیریت{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <h2 class="mb-4">
+            <i class="fas fa-credit-card me-2"></i>تنظیمات پرداخت کارت به کارت
+        </h2>
+
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-university me-2"></i>اطلاعات کارت بانکی
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin_payment_settings') }}">
+
+                    <div class="mb-3">
+                        <label class="form-label">شماره کارت *</label>
+                        <input type="text" class="form-control" name="card_number"
+                               value="{{ card_number }}"
+                               placeholder="مثال: 6037-9970-1234-5678" required>
+                        <div class="form-text">شماره کارتی که کاربران به آن واریز می‌کنند</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">نام بانک</label>
+                        <input type="text" class="form-control" name="bank_name"
+                               value="{{ bank_name }}"
+                               placeholder="مثال: بانک ملت">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">شماره شبا (اختیاری)</label>
+                        <input type="text" class="form-control ltr" name="shaba"
+                               value="{{ shaba }}"
+                               placeholder="IR..."
+                               dir="ltr">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">نام صاحب کارت (اختیاری)</label>
+                        <input type="text" class="form-control" name="card_holder"
+                               value="{{ card_holder }}"
+                               placeholder="نام و نام خانوادگی">
+                        <div class="form-text">این نام به کاربر نمایش داده نمی‌شود (فلا internal)</div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        <strong>امنیت:</strong> اطلاعات کارت بانکی فقط در صفحه پرداخت به کاربر نمایش داده می‌شود
+                        و در هیچ جای دیگری از سایت قابل مشاهده نیست.
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-save me-2"></i>ذخیره تنظیمات
+                        </button>
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-times me-2"></i>انصراف
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

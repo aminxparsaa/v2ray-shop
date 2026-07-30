@@ -13,12 +13,10 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, jsonify, session, abort
 )
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
-    LoginManager, UserMixin, login_user, logout_user,
+    LoginManager, login_user, logout_user,
     login_required, current_user
 )
-from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -31,108 +29,21 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///v2r
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
-db = SQLAlchemy(app)
+from models import db, User, Config, Order, SiteSettings
+db.init_app(app)
+
 login_manager = LoginManager(app)
-login_manager.login_view = 'auth.login'
+login_manager.login_view = 'login'
 login_manager.login_message = 'لطفا ابتدا وارد شوید'
+
+# Import and register payment blueprint
+from payment import payment_bp
+app.register_blueprint(payment_bp, url_prefix='/pay')
 
 # GitHub settings
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
 GITHUB_REPO = os.getenv('GITHUB_REPO', '')
 GITHUB_CONFIGS_PATH = os.getenv('GITHUB_CONFIGS_PATH', 'configs/')
-
-
-# ==================== Models ====================
-
-class User(UserMixin, db.Model):
-    """مدل کاربر"""
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
-    is_active_user = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    orders = db.relationship('Order', backref='user', lazy=True)
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-
-class Config(db.Model):
-    """مدل کانفیگ V2Ray"""
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    config_data = db.Column(db.Text, nullable=False)  # V2Ray config JSON
-    price = db.Column(db.Integer, nullable=False)  # Price in Toman
-    duration_days = db.Column(db.Integer, default=30)  # Duration in days
-    server_location = db.Column(db.String(50))
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    stock = db.Column(db.Integer, default=0)  # Number of available configs
-    github_path = db.Column(db.String(255))  # Path in GitHub repo
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'description': self.description,
-            'price': self.price,
-            'duration_days': self.duration_days,
-            'server_location': self.server_location,
-            'is_active': self.is_active,
-            'stock': self.stock,
-            'created_at': self.created_at.isoformat()
-        }
-
-
-class Order(db.Model):
-    """مدل سفارش"""
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    config_id = db.Column(db.Integer, db.ForeignKey('config.id'), nullable=False)
-    status = db.Column(db.String(20), default='pending')  # pending, paid, completed, cancelled
-    payment_id = db.Column(db.String(100))  # Payment gateway ID
-    amount = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    paid_at = db.Column(db.DateTime)
-    config = db.relationship('Config', backref='orders')
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'config_name': self.config.name if self.config else 'N/A',
-            'status': self.status,
-            'amount': self.amount,
-            'created_at': self.created_at.isoformat(),
-            'paid_at': self.paid_at.isoformat() if self.paid_at else None
-        }
-
-
-class SiteSettings(db.Model):
-    """تنظیمات سایت"""
-    id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(50), unique=True, nullable=False)
-    value = db.Column(db.Text)
-
-    @staticmethod
-    def get(key, default=''):
-        setting = SiteSettings.query.filter_by(key=key).first()
-        return setting.value if setting else default
-
-    @staticmethod
-    def set(key, value):
-        setting = SiteSettings.query.filter_by(key=key).first()
-        if setting:
-            setting.value = value
-        else:
-            setting = SiteSettings(key=key, value=value)
-            db.session.add(setting)
-        db.session.commit()
 
 
 # ==================== Custom Filters ====================
@@ -202,10 +113,9 @@ def create_order(config_id):
     db.session.add(order)
     db.session.commit()
 
-    # Here you would integrate with payment gateway (ZarinPal, etc.)
-    # For now, we'll simulate payment
-    flash(f'سفارش شما با شماره #{order.id} ثبت شد!', 'success')
-    return redirect(url_for('order_detail', order_id=order.id))
+    # Redirect to payment page
+    flash(f'سفارش شما با شماره #{order.id} ثبت شد.', 'success')
+    return redirect(url_for('payment.payment_page', order_id=order.id))
 
 
 @app.route('/orders')
@@ -312,6 +222,25 @@ def admin_config_delete(config_id):
     return redirect(url_for('admin_configs'))
 
 
+@app.route('/admin/payment-settings', methods=['GET', 'POST'])
+@admin_required
+def admin_payment_settings():
+    """تنظیمات پرداخت کارت به کارت"""
+    if request.method == 'POST':
+        SiteSettings.set('card_number', request.form.get('card_number', ''))
+        SiteSettings.set('bank_name', request.form.get('bank_name', ''))
+        SiteSettings.set('shaba', request.form.get('shaba', ''))
+        SiteSettings.set('card_holder', request.form.get('card_holder', ''))
+        flash('تنظیمات پرداخت ذخیره شد!', 'success')
+        return redirect(url_for('admin_payment_settings'))
+
+    return render_template('admin/payment_settings.html',
+                         card_number=SiteSettings.get('card_number', ''),
+                         bank_name=SiteSettings.get('bank_name', ''),
+                         shaba=SiteSettings.get('shaba', ''),
+                         card_holder=SiteSettings.get('card_holder', ''))
+
+
 @app.route('/admin/users')
 @admin_required
 def admin_users():
@@ -370,11 +299,9 @@ def admin_github_sync():
             synced = 0
             for file in files:
                 if file['name'].endswith('.json'):
-                    # Download config file
                     content_response = req.get(file['download_url'])
                     if content_response.status_code == 200:
                         config_data = content_response.json()
-                        # Check if config already exists
                         existing = Config.query.filter_by(github_path=file['path']).first()
                         if not existing:
                             new_config = Config(
@@ -436,7 +363,6 @@ def register():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
 
-        # Validation
         if password != confirm_password:
             flash('رمز عبور مطابقت ندارد!', 'danger')
             return render_template('auth/register.html')
@@ -449,7 +375,6 @@ def register():
             flash('این ایمیل قبلا ثبت شده!', 'danger')
             return render_template('auth/register.html')
 
-        # Create user
         user = User(username=username, email=email)
         user.set_password(password)
         db.session.add(user)
@@ -522,7 +447,6 @@ def init_db():
     """ایجاد دیتابیس و ادمین پیش‌فرض"""
     db.create_all()
 
-    # Create default admin
     admin_username = os.getenv('ADMIN_USERNAME', 'admin')
     admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
 
@@ -545,7 +469,6 @@ def init_db():
 @app.cli.command('create-sample-data')
 def create_sample_data():
     """ایجاد داده‌های نمونه"""
-    # Sample configs
     sample_configs = [
         {
             'name': 'کانفیگ VIP آمریکا',
