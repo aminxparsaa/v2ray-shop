@@ -114,7 +114,7 @@ def list_configs_from_github():
             files = response.json()
             configs = []
             for f in files:
-                if f['name'].endswith('.json'):
+                if f['name'].endswith('.txt'):
                     configs.append({
                         'name': f['name'],
                         'path': f['path'],
