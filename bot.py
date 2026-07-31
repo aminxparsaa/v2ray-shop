@@ -900,16 +900,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if waiting_discount_code[user_id]:
             del waiting_discount_code[user_id]
             
-            # Check if user is admin or support
-            if user_id not in ADMIN_USER_IDS and user_id not in SUPPORT_USER_IDS:
-                await update.message.reply_text(
-                    "❌ **شما اجازه استفاده از کد تخفیف را ندارید!**\n\n"
-                    "فقط پشتیبانی و مدیران می‌توانند از کد تخفیف استفاده کنند.\n\n"
-                    "💬 **پشتیبانی:** @leili9772r",
-                    parse_mode='Markdown'
-                )
-                return True
-            
             # Validate discount code
             code = text.strip().lower()
             if code in VALID_DISCOUNT_CODES:
