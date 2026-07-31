@@ -38,6 +38,26 @@ logger = logging.getLogger(__name__)
 
 # Store user orders
 user_orders = {}
+ORDERS_FILE = '/data/workspace/v2ray-shop/.user_orders.json'
+
+def load_orders():
+    """بارگذاری سفارش‌ها از فایل"""
+    global user_orders
+    try:
+        if os.path.exists(ORDERS_FILE):
+            with open(ORDERS_FILE, 'r') as f:
+                user_orders = json.load(f)
+            logger.info(f"Loaded {len(user_orders)} orders from file")
+    except Exception as e:
+        logger.error(f"Error loading orders: {e}")
+
+def save_orders():
+    """ذخیره سفارش‌ها در فایل"""
+    try:
+        with open(ORDERS_FILE, 'w') as f:
+            json.dump(user_orders, f)
+    except Exception as e:
+        logger.error(f"Error saving orders: {e}")
 upload_mode = {}
 pending_payment = {}
 
@@ -515,6 +535,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
         'message_id': update.message.message_id
     }
+    save_orders()
 
     # Confirm to user
     confirm_msg = (
@@ -830,6 +851,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == 'approve':
         if user_id in user_orders:
             user_orders[user_id]['status'] = 'approved'
+            save_orders()
 
             configs = get_mixed_configs(count_vless=3, count_trojan=3)
 
@@ -896,6 +918,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif action == 'reject':
         if user_id in user_orders:
+            user_orders[user_id]['status'] = 'rejected'
+            save_orders()
+            
             await context.bot.send_message(
                 chat_id=user_id,
                 text="❌ **پرداخت شما تأیید نشد.**\n\n"
@@ -1081,6 +1106,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """اجرای ربات"""
+    # Load orders from file
+    load_orders()
+    
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Add handlers
