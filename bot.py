@@ -154,6 +154,61 @@ def set_round_robin_index(index):
     except Exception as e:
         logger.error(f"Error saving round-robin index: {e}")
 
+def get_mixed_configs(count_vless=3, count_trojan=3):
+    """دریافت کانفیگ‌های ترکیبی (VLESS + Trojan)"""
+    configs = list_configs_from_github()
+    if not configs:
+        return []
+    
+    # Separate configs by protocol
+    vless_configs = [c for c in configs if 'vless' in c['name'].lower()]
+    trojan_configs = [c for c in configs if 'trojan' in c['name'].lower()]
+    
+    result = []
+    
+    # Get VLESS configs
+    index = get_round_robin_index()
+    for i in range(min(count_vless, len(vless_configs))):
+        idx = (index + i) % len(vless_configs)
+        cfg = vless_configs[idx]
+        try:
+            url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{cfg["path"]}'
+            response = requests.get(url, headers=get_github_headers())
+            if response.status_code == 200:
+                file_content = response.json().get('content', '')
+                decoded = base64.b64decode(file_content).decode('utf-8')
+                result.append({
+                    'name': cfg['name'],
+                    'config': json.loads(decoded),
+                    'protocol': 'vless'
+                })
+        except Exception as e:
+            logger.error(f"Error getting config: {e}")
+    
+    # Get Trojan configs
+    for i in range(min(count_trojan, len(trojan_configs))):
+        idx = (index + i) % len(trojan_configs)
+        cfg = trojan_configs[idx]
+        try:
+            url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{cfg["path"]}'
+            response = requests.get(url, headers=get_github_headers())
+            if response.status_code == 200:
+                file_content = response.json().get('content', '')
+                decoded = base64.b64decode(file_content).decode('utf-8')
+                result.append({
+                    'name': cfg['name'],
+                    'config': json.loads(decoded),
+                    'protocol': 'trojan'
+                })
+        except Exception as e:
+            logger.error(f"Error getting config: {e}")
+    
+    # Update index for next user
+    set_round_robin_index((index + 1) % max(len(vless_configs), len(trojan_configs), 1))
+    
+    return result
+
+
 def get_next_config():
     """دریافت کانفیگ بعدی به صورت چرخشی"""
     configs = list_configs_from_github()
@@ -467,7 +522,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "⏳ **لطفاً صبر کنید...**\n\n"
         "پشتیبانی در اسرع وقت رسید شما را بررسی می‌کند.\n"
-        "پس از تأیید، **۵ کانفیگ** برای شما ارسال خواهد شد.\n\n"
+        "پس از تأیید، **۶ کانفیگ** (۳ VLESS + ۳ Trojan) برای شما ارسال خواهد شد.\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━"
     )
     await update.message.reply_text(confirm_msg, parse_mode='Markdown')
@@ -776,7 +831,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id in user_orders:
             user_orders[user_id]['status'] = 'approved'
 
-            configs = get_random_configs(1)
+            configs = get_mixed_configs(count_vless=3, count_trojan=3)
 
             if configs:
                 await context.bot.send_message(
