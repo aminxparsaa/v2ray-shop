@@ -160,14 +160,14 @@ def get_mixed_configs(count_vless=3, count_trojan=3):
     if not configs:
         return []
     
-    # Separate configs by protocol
+    # Separate configs by protocol (files are .txt with share links)
     vless_configs = [c for c in configs if 'vless' in c['name'].lower()]
     trojan_configs = [c for c in configs if 'trojan' in c['name'].lower()]
     
     result = []
+    index = get_round_robin_index()
     
     # Get VLESS configs
-    index = get_round_robin_index()
     for i in range(min(count_vless, len(vless_configs))):
         idx = (index + i) % len(vless_configs)
         cfg = vless_configs[idx]
@@ -176,10 +176,10 @@ def get_mixed_configs(count_vless=3, count_trojan=3):
             response = requests.get(url, headers=get_github_headers())
             if response.status_code == 200:
                 file_content = response.json().get('content', '')
-                decoded = base64.b64decode(file_content).decode('utf-8')
+                decoded = base64.b64decode(file_content).decode('utf-8').strip()
                 result.append({
-                    'name': cfg['name'],
-                    'config': json.loads(decoded),
+                    'name': cfg['name'].replace('.txt', ''),
+                    'share_link': decoded,
                     'protocol': 'vless'
                 })
         except Exception as e:
@@ -194,10 +194,10 @@ def get_mixed_configs(count_vless=3, count_trojan=3):
             response = requests.get(url, headers=get_github_headers())
             if response.status_code == 200:
                 file_content = response.json().get('content', '')
-                decoded = base64.b64decode(file_content).decode('utf-8')
+                decoded = base64.b64decode(file_content).decode('utf-8').strip()
                 result.append({
-                    'name': cfg['name'],
-                    'config': json.loads(decoded),
+                    'name': cfg['name'].replace('.txt', ''),
+                    'share_link': decoded,
                     'protocol': 'trojan'
                 })
         except Exception as e:
@@ -841,7 +841,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 for i, cfg in enumerate(configs, 1):
-                    share_link, proto_type = config_to_share_link(cfg['config'])
+                    share_link = cfg.get('share_link', '')
+                    proto_type = cfg.get('protocol', 'unknown')
 
                     proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
                     emoji = proto_emoji.get(proto_type, '⚪')
@@ -978,7 +979,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Send free config
                 cfg = get_next_config()
                 if cfg:
-                    share_link, proto_type = config_to_share_link(cfg['config'])
+                    share_link = cfg.get('share_link', '')
+                    proto_type = cfg.get('protocol', 'unknown')
                     proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
                     emoji = proto_emoji.get(proto_type, '⚪')
                     
