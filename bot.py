@@ -1019,14 +1019,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         emoji = proto_emoji.get(proto_type, '⚪')
                         
                         await update.message.reply_text(
-                            f"{emoji} **{i}. {cfg['name']}**",
-                            parse_mode='Markdown'
+                            f"{emoji} {i}. <b>{cfg['name']}</b>",
+                            parse_mode='HTML'
                         )
                         
                         if share_link:
                             await update.message.reply_text(
-                                f"```\n{share_link}\n```",
-                                parse_mode='Markdown'
+                                f"<code>{share_link}</code>",
+                                parse_mode='HTML'
                             )
                     
                     await update.message.reply_text(
