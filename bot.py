@@ -1001,32 +1001,33 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             code = text.strip().lower()
             if code in VALID_DISCOUNT_CODES:
                 discount = VALID_DISCOUNT_CODES[code]
-                # Send free config
-                cfg = get_next_config()
-                if cfg:
-                    share_link = cfg.get('share_link', '')
-                    proto_type = cfg.get('protocol', 'unknown')
-                    proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
-                    emoji = proto_emoji.get(proto_type, '⚪')
-                    
+                # Send free config (3 vless + 3 trojan)
+                configs = get_mixed_configs(count_vless=3, count_trojan=3)
+                if configs:
                     await update.message.reply_text(
                         f"✅ **کد تخفیف فعال شد!**\n\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
                         f"🎁 **تخفیف {discount}%**\n\n"
-                        f"📦 **کانفیگ رایگان شما:**\n",
+                        f"📦 **کانفیگ‌های رایگان شما:**\n",
                         parse_mode='Markdown'
                     )
                     
-                    await update.message.reply_text(
-                        f"{emoji} **{cfg['name']}**",
-                        parse_mode='Markdown'
-                    )
-                    
-                    if share_link:
+                    for i, cfg in enumerate(configs, 1):
+                        share_link = cfg.get('share_link', '')
+                        proto_type = cfg.get('protocol', 'unknown')
+                        proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
+                        emoji = proto_emoji.get(proto_type, '⚪')
+                        
                         await update.message.reply_text(
-                            f"```\n{share_link}\n```",
+                            f"{emoji} **{i}. {cfg['name']}**",
                             parse_mode='Markdown'
                         )
+                        
+                        if share_link:
+                            await update.message.reply_text(
+                                f"```\n{share_link}\n```",
+                                parse_mode='Markdown'
+                            )
                     
                     await update.message.reply_text(
                         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
