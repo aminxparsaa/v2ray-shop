@@ -41,6 +41,14 @@ user_orders = {}
 upload_mode = {}
 pending_payment = {}
 
+# Discount codes
+VALID_DISCOUNT_CODES = {
+    'aminlore': 100  # 100% discount
+}
+
+# Track users waiting for discount code input
+waiting_discount_code = {}
+
 # Admin chat ID - load from file
 ADMIN_FILE = '/data/workspace/v2ray-shop/.admin_chat_id'
 
@@ -288,8 +296,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [KeyboardButton("🛒 خرید کانفیگ"), KeyboardButton("📦 پیگیری سفارش")],
-        [KeyboardButton("📋 لیست کانفیگ‌ها"), KeyboardButton("ℹ️ راهنما")],
-        [KeyboardButton("💬 پشتیبانی")]
+        [KeyboardButton("📋 لیست کانفیگ‌ها"), KeyboardButton("🎁 کد تخفیف")],
+        [KeyboardButton("ℹ️ راهنما"), KeyboardButton("💬 پشتیبانی")]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -883,6 +891,68 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
+    # Check if user is waiting for discount code
+    if user_id in waiting_discount_code:
+        if waiting_discount_code[user_id]:
+            del waiting_discount_code[user_id]
+            # Validate discount code
+            code = text.strip().lower()
+            if code in VALID_DISCOUNT_CODES:
+                discount = VALID_DISCOUNT_CODES[code]
+                # Send free config
+                cfg = get_next_config()
+                if cfg:
+                    share_link, proto_type = config_to_share_link(cfg['config'])
+                    proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
+                    emoji = proto_emoji.get(proto_type, '⚪')
+                    
+                    await update.message.reply_text(
+                        f"✅ **کد تخفیف فعال شد!**\n\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        f"🎁 **تخفیف {discount}%**\n\n"
+                        f"📦 **کانفیگ رایگان شما:**\n",
+                        parse_mode='Markdown'
+                    )
+                    
+                    await update.message.reply_text(
+                        f"{emoji} **{cfg['name']}**",
+                        parse_mode='Markdown'
+                    )
+                    
+                    if share_link:
+                        await update.message.reply_text(
+                            f"```\n{share_link}\n```",
+                            parse_mode='Markdown'
+                        )
+                    
+                    await update.message.reply_text(
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        "📌 **نحوه استفاده:**\n"
+                        "۱. لینک بالا را **کپی** کنید\n"
+                        "۲. اپلیکیشن V2Ray را باز کنید\n"
+                        "۳. روی **+** بزنید\n"
+                        "۴. **Import from Clipboard** را انتخاب کنید\n"
+                        "۵. اتصال را فعال کنید 🚀\n\n"
+                        "💬 **پشتیبانی:** @leili9772r\n\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━",
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text(
+                        "⚠️ **خطا:** کانفیگی برای ارسال موجود نیست.\n"
+                        "لطفاً با پشتیبانی تماس بگیرید: @leili9772r",
+                        parse_mode='Markdown'
+                    )
+            else:
+                await update.message.reply_text(
+                    "❌ **کد تخفیف نامعتبر است!**\n\n"
+                    "لطفاً کد صحیح را وارد کنید.",
+                    parse_mode='Markdown'
+                )
+            return True
+        else:
+            return False
+
     # Check if user is in upload mode
     if user_id in upload_mode:
         if upload_mode[user_id].get('waiting_for_filename'):
@@ -908,6 +978,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await help_command(update, context)
     elif text == "💬 پشتیبانی":
         await support_command(update, context)
+    elif text == "🎁 کد تخفیف":
+        waiting_discount_code[user_id] = True
+        await update.message.reply_text(
+            "🎁 **کد تخفیف**\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "کد تخفیف خود را وارد کنید:\n\n"
+            "📝 **مثال:** `aminlore`\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━",
+            parse_mode='Markdown'
+        )
     elif text == "📊 آمار سایت":
         await admin_stats(update, context)
     elif text == "⬆️ آپلود کانفیگ":
