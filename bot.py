@@ -234,6 +234,7 @@ def config_to_share_link(config_data):
 
             # ==================== VLESS ====================
             elif proto == 'vless':
+                from urllib.parse import quote
                 vnext = outbound['settings']['vnext'][0]
                 user = vnext['users'][0]
                 stream = outbound.get('streamSettings', {})
@@ -248,15 +249,21 @@ def config_to_share_link(config_data):
 
                 if net == 'ws':
                     ws = stream.get('wsSettings', {})
-                    params['path'] = ws.get('path', '')
-                    params['host'] = ws.get('headers', {}).get('Host', '')
+                    path = ws.get('path', '')
+                    host = ws.get('host', '') or ws.get('headers', {}).get('Host', '')
+                    if path:
+                        params['path'] = path
+                    if host:
+                        params['host'] = host
 
                 if security == 'tls':
                     tls = stream.get('tlsSettings', {})
-                    params['sni'] = tls.get('serverName', '')
-                    params['fp'] = 'chrome'
+                    sni = tls.get('serverName', '')
+                    if sni:
+                        params['sni'] = sni
+                        params['fp'] = 'chrome'
 
-                query = '&'.join([f"{k}={v}" for k, v in params.items()])
+                query = '&'.join([f"{k}={quote(str(v), safe='')}" for k, v in params.items()])
                 name = config_data.get('name', 'V2Ray Config')
                 link = f"vless://{user['id']}@{vnext['address']}:{vnext['port']}?{query}#{name}"
                 return link, 'vless'
@@ -274,16 +281,25 @@ def config_to_share_link(config_data):
 
                     if net == 'ws':
                         ws = stream.get('wsSettings', {})
-                        params['path'] = ws.get('path', '')
-                        params['host'] = ws.get('headers', {}).get('Host', '')
+                        path = ws.get('path', '')
+                        host = ws.get('host', '') or ws.get('headers', {}).get('Host', '')
+                        if path:
+                            params['path'] = path
+                        if host:
+                            params['host'] = host
 
                     if security == 'tls':
                         tls = stream.get('tlsSettings', {})
-                        params['sni'] = tls.get('serverName', '')
+                        sni = tls.get('serverName', '')
+                        if sni:
+                            params['sni'] = sni
 
-                    query = '&'.join([f"{k}={v}" for k, v in params.items()])
+                    # URL encode password and params
+                    from urllib.parse import quote
+                    password = quote(server['password'], safe='')
+                    query = '&'.join([f"{k}={quote(str(v), safe='')}" for k, v in params.items()])
                     name = config_data.get('name', 'V2Ray Config')
-                    link = f"trojan://{server['password']}@{server['address']}:{server['port']}?{query}#{name}"
+                    link = f"trojan://{password}@{server['address']}:{server['port']}?{query}#{name}"
                     return link, 'trojan'
 
     except Exception as e:
