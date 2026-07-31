@@ -710,7 +710,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode='Markdown'
                 )
 
-                # Send each config with both link and JSON
+                # Send each config with share link only
                 for i, cfg in enumerate(configs, 1):
                     share_link, proto_type = config_to_share_link(cfg['config'])
 
@@ -724,40 +724,25 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode='Markdown'
                     )
 
-                    # Send share link (if available)
+                    # Send share link
                     if share_link:
-                        link_msg = (
-                            f"🔗 **لینک {proto_type.upper()}:**\n"
-                            f"```\n{share_link}\n```\n\n"
-                            f"📌 **نحوه استفاده:**\n"
-                            f"این لینک را کپی و در اپلیکیشن V2Ray وارد کنید"
-                        )
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=link_msg,
+                            text=f"```\n{share_link}\n```",
                             parse_mode='Markdown'
                         )
-
-                    # Send JSON config
-                    config_text = json.dumps(cfg['config'], ensure_ascii=False, indent=2)
-                    if len(config_text) > 3500:
-                        config_text = config_text[:3500] + "\n..."
-                    json_msg = f"📄 **فرمت JSON:**\n```json\n{config_text}\n```"
-                    await context.bot.send_message(
-                        chat_id=user_id,
-                        text=json_msg,
-                        parse_mode='Markdown'
-                    )
 
                 # Final message
                 final_msg = (
                     "━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     "✅ **تمام کانفیگ‌ها ارسال شد!**\n\n"
-                    "📌 **نکات مهم:**\n"
-                    "🔹 از لینک vmess برای اتصال سریع استفاده کنید\n"
-                    "🔹 فرمت JSON برای تنظیم دستی است\n"
-                    "🔹 اگر مشکلی داشتید با @leili9772r تماس بگیرید\n\n"
-                    "🚀 **از اینترنت آزاد لذت ببرید!**\n\n"
+                    "📌 **نحوه استفاده:**\n"
+                    "۱. لینک بالا را **کپی** کنید\n"
+                    "۲. اپلیکیشن V2Ray را باز کنید\n"
+                    "۳. روی **+** بزنید\n"
+                    "۴. **Import from Clipboard** را انتخاب کنید\n"
+                    "۵. اتصال را فعال کنید 🚀\n\n"
+                    "💬 **پشتیبانی:** @leili9772r\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━"
                 )
                 await context.bot.send_message(
