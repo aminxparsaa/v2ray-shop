@@ -122,13 +122,17 @@ def get_random_configs(count=5):
     return result
 
 
-def config_to_vmess_link(config_data):
-    """تبدیل کانفیگ به لینک vmess://"""
+def config_to_share_link(config_data):
+    """تبدیل کانفیگ به لینک اشتراک (vmess/vless/trojan)"""
     try:
-        # Extract vmess config
         outbounds = config_data.get('config', config_data).get('outbounds', [])
+        protocol = config_data.get('type', '')
+
         for outbound in outbounds:
-            if outbound.get('protocol') == 'vmess':
+            proto = outbound.get('protocol', protocol)
+
+            # ==================== VMESS ====================
+            if proto == 'vmess':
                 vmess_obj = {
                     'v': '2',
                     'ps': config_data.get('name', 'V2Ray Config'),
@@ -142,8 +146,6 @@ def config_to_vmess_link(config_data):
                     'path': '',
                     'tls': ''
                 }
-
-                # Stream settings
                 stream = outbound.get('streamSettings', {})
                 if stream.get('security') == 'tls':
                     vmess_obj['tls'] = 'tls'
@@ -151,14 +153,80 @@ def config_to_vmess_link(config_data):
                     ws = stream.get('wsSettings', {})
                     vmess_obj['path'] = ws.get('path', '')
                     vmess_obj['host'] = ws.get('headers', {}).get('Host', '')
-
-                # Encode to base64
                 vmess_json = json.dumps(vmess_obj, ensure_ascii=False)
                 vmess_b64 = base64.b64encode(vmess_json.encode('utf-8')).decode('utf-8')
-                return f"vmess://{vmess_b64}"
+                return f"vmess://{vmess_b64}", 'vmess'
+
+            # ==================== VLESS ====================
+            elif proto == 'vless':
+                vnext = outbound['settings']['vnext'][0]
+                user = vnext['users'][0]
+                stream = outbound.get('streamSettings', {})
+                net = stream.get('network', 'tcp')
+                security = stream.get('security', 'none')
+
+                params = {
+                    'type': net,
+                    'security': security,
+                    'encryption': user.get('encryption', 'none')
+                }
+
+                if net == 'ws':
+                    ws = stream.get('wsSettings', {})
+                    params['path'] = ws.get('path', '')
+                    params['host'] = ws.get('headers', {}).get('Host', '')
+
+                if security == 'tls':
+                    tls = stream.get('tlsSettings', {})
+                    params['sni'] = tls.get('serverName', '')
+                    params['fp'] = 'chrome'
+
+                query = '&'.join([f"{k}={v}" for k, v in params.items()])
+                name = config_data.get('name', 'V2Ray Config')
+                link = f"vless://{user['id']}@{vnext['address']}:{vnext['port']}?{query}#{name}"
+                return link, 'vless'
+
+            # ==================== TROJAN ====================
+            elif proto == 'trojan':
+                servers = outbound['settings'].get('servers', [])
+                if servers:
+                    server = servers[0]
+                    stream = outbound.get('streamSettings', {})
+                    net = stream.get('network', 'tcp')
+                    security = stream.get('security', 'tls')
+
+                    params = {'type': net}
+
+                    if net == 'ws':
+                        ws = stream.get('wsSettings', {})
+                        params['path'] = ws.get('path', '')
+                        params['host'] = ws.get('headers', {}).get('Host', '')
+
+                    if security == 'tls':
+                        tls = stream.get('tlsSettings', {})
+                        params['sni'] = tls.get('serverName', '')
+
+                    query = '&'.join([f"{k}={v}" for k, v in params.items()])
+                    name = config_data.get('name', 'V2Ray Config')
+                    link = f"trojan://{server['password']}@{server['address']}:{server['port']}?{query}#{name}"
+                    return link, 'trojan'
+
+            # ==================== SHADOWSOCKS ====================
+            elif proto == 'shadowsocks':
+                ss = outbound['settings']
+                method = ss.get('method', 'aes-256-gcm')
+                password = ss.get('password', '')
+                address = ss.get('servers', [{}])[0].get('address', '')
+                port = ss.get('servers', [{}])[0].get('port', 0)
+
+                userinfo = base64.b64encode(f"{method}:{password}".encode()).decode()
+                name = config_data.get('name', 'V2Ray Config')
+                link = f"ss://{userinfo}@{address}:{port}#{name}"
+                return link, 'shadowsocks'
+
     except Exception as e:
-        logger.error(f"Error converting to vmess link: {e}")
-    return None
+        logger.error(f"Error converting config to link: {e}")
+    return None, None
 
 
 # ==================== User Commands ====================
@@ -526,12 +594,18 @@ async def admin_upload_config(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         "⬆️ **آپلود کانفیگ جدید**\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "کانفیگ V2Ray را به صورت JSON ارسال کنید.\n\n"
+        "کانفیگ را به صورت JSON ارسال کنید.\n\n"
+        "**پروتکل‌های پشتیبانی شده:**\n"
+        "🔵 VMess\n"
+        "🟢 VLESS\n"
+        "🔴 Trojan\n"
+        "🟡 Shadowsocks\n\n"
         "**فرمت مورد نظر:**\n"
         "```json\n"
         "{\n"
         '  "name": "نام کانفیگ",\n'
         '  "description": "توضیحات",\n'
+        '  "type": "vless",\n'
         '  "config": {\n'
         '    "inbounds": [...],\n'
         '    "outbounds": [...]\n'
@@ -636,29 +710,31 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode='Markdown'
                 )
 
-                # Send each config with both JSON and vmess link
+                # Send each config with both link and JSON
                 for i, cfg in enumerate(configs, 1):
-                    vmess_link = config_to_vmess_link(cfg['config'])
+                    share_link, proto_type = config_to_share_link(cfg['config'])
 
                     # Send config name
-                    cfg_header = f"**{i}. {cfg['name']}**"
+                    proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴', 'shadowsocks': '🟡'}
+                    emoji = proto_emoji.get(proto_type, '⚪')
+                    cfg_header = f"{emoji} **{i}. {cfg['name']}**"
                     await context.bot.send_message(
                         chat_id=user_id,
                         text=cfg_header,
                         parse_mode='Markdown'
                     )
 
-                    # Send vmess link (if available)
-                    if vmess_link:
-                        vmess_msg = (
-                            f"🔗 **لینک vmess:**\n"
-                            f"```\n{vmess_link}\n```\n\n"
+                    # Send share link (if available)
+                    if share_link:
+                        link_msg = (
+                            f"🔗 **لینک {proto_type.upper()}:**\n"
+                            f"```\n{share_link}\n```\n\n"
                             f"📌 **نحوه استفاده:**\n"
                             f"این لینک را کپی و در اپلیکیشن V2Ray وارد کنید"
                         )
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=vmess_msg,
+                            text=link_msg,
                             parse_mode='Markdown'
                         )
 
