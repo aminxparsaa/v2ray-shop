@@ -41,10 +41,14 @@ user_orders = {}
 upload_mode = {}
 pending_payment = {}
 
-# Discount codes
+# Discount codes - only for admin/support
 VALID_DISCOUNT_CODES = {
     'aminlore': 100  # 100% discount
 }
+
+# Admin and support user IDs (can use discount codes)
+ADMIN_USER_IDS = [8083781285]  # Add your Telegram user ID here
+SUPPORT_USER_IDS = []  # Add support user IDs if needed
 
 # Track users waiting for discount code input
 waiting_discount_code = {}
@@ -895,6 +899,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in waiting_discount_code:
         if waiting_discount_code[user_id]:
             del waiting_discount_code[user_id]
+            
+            # Check if user is admin or support
+            if user_id not in ADMIN_USER_IDS and user_id not in SUPPORT_USER_IDS:
+                await update.message.reply_text(
+                    "❌ **شما اجازه استفاده از کد تخفیف را ندارید!**\n\n"
+                    "فقط پشتیبانی و مدیران می‌توانند از کد تخفیف استفاده کنند.\n\n"
+                    "💬 **پشتیبانی:** @leili9772r",
+                    parse_mode='Markdown'
+                )
+                return True
+            
             # Validate discount code
             code = text.strip().lower()
             if code in VALID_DISCOUNT_CODES:
@@ -984,7 +999,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🎁 **کد تخفیف**\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "کد تخفیف خود را وارد کنید:\n\n"
-            "📝 **مثال:** `aminlore`\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━",
             parse_mode='Markdown'
         )
