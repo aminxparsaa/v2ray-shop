@@ -858,8 +858,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if configs:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text="🎉 **پرداخت شما تأیید شد!**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n📦 **کانفیگ‌های شما:**",
-                    parse_mode='Markdown'
+                    text="🎉 <b>پرداخت شما تأیید شد!</b>\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n📦 <b>کانفیگ‌های شما:</b>",
+                    parse_mode='HTML'
                 )
 
                 for i, cfg in enumerate(configs, 1):
@@ -868,50 +868,50 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
                     emoji = proto_emoji.get(proto_type, '⚪')
-                    cfg_header = f"{emoji} **{i}. {cfg['name']}**"
+                    cfg_header = f"{emoji} {i}. <b>{cfg['name']}</b>"
                     await context.bot.send_message(
                         chat_id=user_id,
                         text=cfg_header,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
 
                     if share_link:
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=f"```\n{share_link}\n```",
-                            parse_mode='Markdown'
+                            text=f"<code>{share_link}</code>",
+                            parse_mode='HTML'
                         )
 
                 final_msg = (
                     "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "✅ **تمام کانفیگ‌ها ارسال شد!**\n\n"
-                    "📌 **نحوه استفاده:**\n"
-                    "۱. لینک بالا را **کپی** کنید\n"
+                    "✅ <b>تمام کانفیگ‌ها ارسال شد!</b>\n\n"
+                    "📌 <b>نحوه استفاده:</b>\n"
+                    "۱. لینک بالا را <b>کپی</b> کنید\n"
                     "۲. اپلیکیشن V2Ray را باز کنید\n"
-                    "۳. روی **+** بزنید\n"
-                    "۴. **Import from Clipboard** را انتخاب کنید\n"
+                    "۳. روی <b>+</b> بزنید\n"
+                    "۴. <b>Import from Clipboard</b> را انتخاب کنید\n"
                     "۵. اتصال را فعال کنید 🚀\n\n"
-                    "💬 **پشتیبانی:** @leili9772r\n\n"
+                    "💬 <b>پشتیبانی:</b> @leili9772r\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━"
                 )
                 await context.bot.send_message(
                     chat_id=user_id,
                     text=final_msg,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
 
                 await query.edit_message_text(
-                    text=f"✅ **پرداخت تأیید شد!**\n\n"
+                    text=f"✅ <b>پرداخت تأیید شد!</b>\n\n"
                          f"📦 {len(configs)} کانفیگ برای کاربر "
                          f"{user_orders[user_id]['first_name']} ارسال شد.",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
             else:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text="⚠️ **خطا:** کانفیگی برای ارسال موجود نیست.\n"
+                    text="⚠️ <b>خطا:</b> کانفیگی برای ارسال موجود نیست.\n"
                          "لطفاً با پشتیبانی تماس بگیرید: @leili9772r",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
         else:
             await query.edit_message_text("❌ سفارش یافت نشد.")
@@ -1004,28 +1004,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Send free config (3 vless + 3 trojan)
                 configs = get_mixed_configs(count_vless=3, count_trojan=3)
                 if configs:
-                    await update.message.reply_text(
-                        f"✅ **کد تخفیف فعال شد!**\n\n"
-                        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                        f"🎁 **تخفیف {discount}%**\n\n"
-                        f"📦 **کانفیگ‌های رایگان شما:**\n",
-                        parse_mode='Markdown'
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="🎉 <b>پرداخت شما تأیید شد!</b>\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n📦 <b>کانفیگ‌های شما:</b>",
+                        parse_mode='HTML'
                     )
-                    
+
                     for i, cfg in enumerate(configs, 1):
                         share_link = cfg.get('share_link', '')
                         proto_type = cfg.get('protocol', 'unknown')
                         proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
                         emoji = proto_emoji.get(proto_type, '⚪')
-                        
-                        await update.message.reply_text(
-                            f"{emoji} {i}. <b>{cfg['name']}</b>",
+                        cfg_header = f"{emoji} {i}. <b>{cfg['name']}</b>"
+                        await context.bot.send_message(
+                            chat_id=user_id,
+                            text=cfg_header,
                             parse_mode='HTML'
                         )
-                        
+
                         if share_link:
-                            await update.message.reply_text(
-                                f"<code>{share_link}</code>",
+                            await context.bot.send_message(
+                                chat_id=user_id,
+                                text=f"<code>{share_link}</code>",
                                 parse_mode='HTML'
                             )
                     
