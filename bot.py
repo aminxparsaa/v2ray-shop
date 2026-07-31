@@ -36,12 +36,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Store user orders and admin state
+# Store user orders
 user_orders = {}
-admin_chat_id = None
 upload_mode = {}
-# Track pending payments waiting for image
 pending_payment = {}
+
+# Admin chat ID - load from file
+ADMIN_FILE = '/data/workspace/v2ray-shop/.admin_chat_id'
+
+def get_admin_chat_id():
+    """خواندن آیدی ادمین از فایل"""
+    try:
+        if os.path.exists(ADMIN_FILE):
+            with open(ADMIN_FILE, 'r') as f:
+                return int(f.read().strip())
+    except Exception as e:
+        logger.error(f"Error reading admin ID: {e}")
+    return None
+
+def set_admin_chat_id(chat_id):
+    """ذخیره آیدی ادمین در فایل"""
+    try:
+        with open(ADMIN_FILE, 'w') as f:
+            f.write(str(chat_id))
+        logger.info(f"Admin chat ID saved: {chat_id}")
+    except Exception as e:
+        logger.error(f"Error saving admin ID: {e}")
+
+# Load admin ID on startup
+admin_chat_id = get_admin_chat_id()
+if admin_chat_id:
+    logger.info(f"Admin chat ID loaded: {admin_chat_id}")
 
 
 def get_github_headers():
@@ -96,29 +121,67 @@ def upload_config_to_github(filename, content_dict):
     return False
 
 
-def get_random_configs(count=5):
-    """دریافت کانفیگ‌های تصادفی"""
-    configs = list_configs_from_github()
-    if len(configs) >= count:
-        import random
-        selected = random.sample(configs, count)
-    else:
-        selected = configs
+# Round-robin state file
+ROUND_ROBIN_FILE = '/data/workspace/v2ray-shop/.round_robin_index'
 
+def get_round_robin_index():
+    """خواندن ایندکس چرخشی"""
+    try:
+        if os.path.exists(ROUND_ROBIN_FILE):
+            with open(ROUND_ROBIN_FILE, 'r') as f:
+                return int(f.read().strip())
+    except:
+        pass
+    return 0
+
+def set_round_robin_index(index):
+    """ذخیره ایندکس چرخشی"""
+    try:
+        with open(ROUND_ROBIN_FILE, 'w') as f:
+            f.write(str(index))
+    except Exception as e:
+        logger.error(f"Error saving round-robin index: {e}")
+
+def get_next_config():
+    """دریافت کانفیگ بعدی به صورت چرخشی"""
+    configs = list_configs_from_github()
+    if not configs:
+        return None
+    
+    index = get_round_robin_index()
+    config = configs[index % len(configs)]
+    
+    # Update index for next user
+    set_round_robin_index((index + 1) % len(configs))
+    
+    # Fetch config content
+    try:
+        url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{config["path"]}'
+        response = requests.get(url, headers=get_github_headers())
+        if response.status_code == 200:
+            file_content = response.json().get('content', '')
+            decoded = base64.b64decode(file_content).decode('utf-8')
+            return {
+                'name': config['name'],
+                'config': json.loads(decoded)
+            }
+    except Exception as e:
+        logger.error(f"Error getting config: {e}")
+    return None
+
+
+def get_random_configs(count=1):
+    """دریافت کانفیگ‌های تصادفی (edge case)"""
+    configs = list_configs_from_github()
+    if not configs:
+        return []
+    
+    # Use round-robin
     result = []
-    for cfg in selected:
-        try:
-            url = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{cfg["path"]}'
-            response = requests.get(url, headers=get_github_headers())
-            if response.status_code == 200:
-                file_content = response.json().get('content', '')
-                decoded = base64.b64decode(file_content).decode('utf-8')
-                result.append({
-                    'name': cfg['name'],
-                    'config': json.loads(decoded)
-                })
-        except Exception as e:
-            logger.error(f"Error getting config: {e}")
+    for _ in range(min(count, len(configs))):
+        cfg = get_next_config()
+        if cfg:
+            result.append(cfg)
     return result
 
 
@@ -211,19 +274,6 @@ def config_to_share_link(config_data):
                     link = f"trojan://{server['password']}@{server['address']}:{server['port']}?{query}#{name}"
                     return link, 'trojan'
 
-            # ==================== SHADOWSOCKS ====================
-            elif proto == 'shadowsocks':
-                ss = outbound['settings']
-                method = ss.get('method', 'aes-256-gcm')
-                password = ss.get('password', '')
-                address = ss.get('servers', [{}])[0].get('address', '')
-                port = ss.get('servers', [{}])[0].get('port', 0)
-
-                userinfo = base64.b64encode(f"{method}:{password}".encode()).decode()
-                name = config_data.get('name', 'V2Ray Config')
-                link = f"ss://{userinfo}@{address}:{port}#{name}"
-                return link, 'shadowsocks'
-
     except Exception as e:
         logger.error(f"Error converting config to link: {e}")
     return None, None
@@ -236,7 +286,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     args = context.args
 
-    # Main menu keyboard
     keyboard = [
         [KeyboardButton("🛒 خرید کانفیگ"), KeyboardButton("📦 پیگیری سفارش")],
         [KeyboardButton("📋 لیست کانفیگ‌ها"), KeyboardButton("ℹ️ راهنما")],
@@ -390,7 +439,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "⏳ **لطفاً صبر کنید...**\n\n"
         "پشتیبانی در اسرع وقت رسید شما را بررسی می‌کند.\n"
-        "پس از تأیید، **۵ کانفیگ V2Ray** برای شما ارسال خواهد شد.\n\n"
+        "پس از تأیید، **۵ کانفیگ** برای شما ارسال خواهد شد.\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━"
     )
     await update.message.reply_text(confirm_msg, parse_mode='Markdown')
@@ -428,6 +477,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         logger.warning(f"Admin chat ID not set. Receipt from user {user.id}")
+        await update.message.reply_text(
+            "⚠️ **پشتیبانی هنوز تنظیم نشده است.**\n\n"
+            "لطفاً با @leili9772r تماس بگیرید.",
+            parse_mode='Markdown'
+        )
 
 
 # ==================== Upload Config Mode ====================
@@ -446,7 +500,6 @@ async def handle_text_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("❌ **آپلود کانفیگ لغو شد.**", parse_mode='Markdown')
         return True
 
-    # Try to parse JSON
     try:
         config_data = json.loads(text)
     except json.JSONDecodeError:
@@ -465,7 +518,7 @@ async def handle_text_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
         upload_mode[user_id]['waiting_for_filename'] = True
         await update.message.reply_text(
             "📝 **نام فایل را وارد کنید:**\n\n"
-            "مثال: `us-premium.json`\n\n"
+            "مثال: `us-vless.json`\n\n"
             "⚠️ نام باید با .json تمام شود.",
             parse_mode='Markdown'
         )
@@ -498,7 +551,7 @@ async def handle_text_filename(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not filename.endswith('.json'):
         await update.message.reply_text(
-            "❌ **نام فایل باید با .json تمام شود!**\n\nمثال: `us-premium.json`",
+            "❌ **نام فایل باید با .json تمام شود!**\n\nمثال: `us-vless.json`",
             parse_mode='Markdown'
         )
         return True
@@ -553,8 +606,7 @@ async def admin_list_configs(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg = "📋 **لیست کانفیگ‌های مخزن:**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
         for i, cfg in enumerate(configs, 1):
             msg += f"**{i}.** `{cfg['name']}`\n"
-            msg += f"   📁 `{cfg['path']}`\n"
-            msg += f"   📦 حجم: {cfg['size']} بایت\n\n"
+            msg += f"   📁 `{cfg['path']}`\n\n"
         msg += f"━━━━━━━━━━━━━━━━━━━━━━\n"
         msg += f"📊 تعداد کل: **{len(configs)}** کانفیگ"
     else:
@@ -598,8 +650,7 @@ async def admin_upload_config(update: Update, context: ContextTypes.DEFAULT_TYPE
         "**پروتکل‌های پشتیبانی شده:**\n"
         "🔵 VMess\n"
         "🟢 VLESS\n"
-        "🔴 Trojan\n"
-        "🟡 Shadowsocks\n\n"
+        "🔴 Trojan\n\n"
         "**فرمت مورد نظر:**\n"
         "```json\n"
         "{\n"
@@ -611,8 +662,6 @@ async def admin_upload_config(update: Update, context: ContextTypes.DEFAULT_TYPE
         '    "outbounds": [...]\n'
         "  },\n"
         '  "price": 50000,\n'
-        '  "duration_days": 30,\n'
-        '  "server_location": "آمریکا",\n'
         '  "stock": 10\n'
         "}\n"
         "```\n\n"
@@ -699,23 +748,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id in user_orders:
             user_orders[user_id]['status'] = 'approved'
 
-            # Get 5 random configs
-            configs = get_random_configs(5)
+            configs = get_random_configs(1)
 
             if configs:
-                # Send welcome message first
                 await context.bot.send_message(
                     chat_id=user_id,
                     text="🎉 **پرداخت شما تأیید شد!**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n📦 **کانفیگ‌های شما:**",
                     parse_mode='Markdown'
                 )
 
-                # Send each config with share link only
                 for i, cfg in enumerate(configs, 1):
                     share_link, proto_type = config_to_share_link(cfg['config'])
 
-                    # Send config name
-                    proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴', 'shadowsocks': '🟡'}
+                    proto_emoji = {'vmess': '🔵', 'vless': '🟢', 'trojan': '🔴'}
                     emoji = proto_emoji.get(proto_type, '⚪')
                     cfg_header = f"{emoji} **{i}. {cfg['name']}**"
                     await context.bot.send_message(
@@ -724,7 +769,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode='Markdown'
                     )
 
-                    # Send share link
                     if share_link:
                         await context.bot.send_message(
                             chat_id=user_id,
@@ -732,7 +776,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             parse_mode='Markdown'
                         )
 
-                # Final message
                 final_msg = (
                     "━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     "✅ **تمام کانفیگ‌ها ارسال شد!**\n\n"
@@ -751,7 +794,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode='Markdown'
                 )
 
-                # Update admin
                 await query.edit_message_text(
                     text=f"✅ **پرداخت تأیید شد!**\n\n"
                          f"📦 {len(configs)} کانفیگ برای کاربر "
@@ -807,19 +849,25 @@ async def set_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """تنظیم ادمین"""
     global admin_chat_id
 
+    chat_id = update.effective_chat.id
+
     if not admin_chat_id:
-        admin_chat_id = update.effective_chat.id
+        admin_chat_id = chat_id
+        set_admin_chat_id(chat_id)  # Save to file
         await update.message.reply_text(
             f"✅ **ادمین تنظیم شد!**\n\n"
-            f"آیدی چت: `{admin_chat_id}`\n\n"
+            f"آیدی چت: `{chat_id}`\n\n"
             f"از این به بعد تمام رسیدها به این چت ارسال می‌شوند.\n"
             f"برای ورود به پنل مدیریت: /admin",
             parse_mode='Markdown'
         )
-        logger.info(f"Admin chat ID set: {admin_chat_id}")
     else:
+        # Allow re-setting admin
+        admin_chat_id = chat_id
+        set_admin_chat_id(chat_id)
         await update.message.reply_text(
-            f"ℹ️ **ادمین قبلاً تنظیم شده است.**\n\nآیدی فعلی: `{admin_chat_id}`",
+            f"✅ **ادمین آپدیت شد!**\n\n"
+            f"آیدی جدید: `{chat_id}`",
             parse_mode='Markdown'
         )
 
