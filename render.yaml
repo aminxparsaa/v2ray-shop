@@ -1,0 +1,34 @@
+services:
+  # Website
+  - type: web
+    name: v2ray-shop
+    runtime: python
+    buildCommand: pip install -r requirements.txt && pip install python-telegram-bot gunicorn
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        value: aminxparsaa/v2ray-configs
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+
+  # Telegram Bot (Background Worker)
+  - type: worker
+    name: v2ray-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt && pip install python-telegram-bot
+    startCommand: python bot.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        value: aminxparsaa/v2ray-configs
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
