@@ -62,46 +62,94 @@
 
 <!-- Quick Links -->
 <div class="row mb-4">
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 col-6 mb-3">
         <a href="{{ url_for('admin_configs') }}" class="text-decoration-none">
             <div class="card quick-link-card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-box fa-3x text-primary mb-3"></i>
                     <h5>مدیریت کانفیگ‌ها</h5>
-                    <p class="text-muted">افزودن، ویرایش و حذف کانفیگ‌ها</p>
+                    <p class="text-muted">افزودن، ویرایش و حذف</p>
                 </div>
             </div>
         </a>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 col-6 mb-3">
         <a href="{{ url_for('admin_users') }}" class="text-decoration-none">
             <div class="card quick-link-card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-users fa-3x text-success mb-3"></i>
                     <h5>مدیریت کاربران</h5>
-                    <p class="text-muted">مشاهده و مدیریت کاربران</p>
+                    <p class="text-muted">مشاهده و مدیریت</p>
                 </div>
             </div>
         </a>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 col-6 mb-3">
         <a href="{{ url_for('admin_orders') }}" class="text-decoration-none">
             <div class="card quick-link-card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-shopping-bag fa-3x text-warning mb-3"></i>
                     <h5>مدیریت سفارشات</h5>
-                    <p class="text-muted">مشاهده و مدیریت سفارشات</p>
+                    <p class="text-muted">مشاهده و مدیریت</p>
                 </div>
             </div>
         </a>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 col-6 mb-3">
         <a href="{{ url_for('admin_payment_settings') }}" class="text-decoration-none">
             <div class="card quick-link-card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-credit-card fa-3x text-info mb-3"></i>
                     <h5>تنظیمات پرداخت</h5>
-                    <p class="text-muted">تنظیم شماره کارت بانکی</p>
+                    <p class="text-muted">شماره کارت بانکی</p>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- More Quick Links -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <a href="{{ url_for('admin_config_new') }}" class="text-decoration-none">
+            <div class="card quick-link-card h-100 border-success">
+                <div class="card-body text-center">
+                    <i class="fas fa-plus-circle fa-3x text-success mb-3"></i>
+                    <h5>افزودن کانفیگ</h5>
+                    <p class="text-muted">کانفیگ جدید اضافه کنید</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <a href="https://github.com/aminxparsaa/v2ray-configs" target="_blank" class="text-decoration-none">
+            <div class="card quick-link-card h-100 border-dark">
+                <div class="card-body text-center">
+                    <i class="fab fa-github fa-3x text-dark mb-3"></i>
+                    <h5>مخزن GitHub</h5>
+                    <p class="text-muted">مشاهده کانفیگ‌ها</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <a href="https://t.me/V2rayshopiran_bot" target="_blank" class="text-decoration-none">
+            <div class="card quick-link-card h-100 border-primary">
+                <div class="card-body text-center">
+                    <i class="fab fa-telegram fa-3x text-primary mb-3"></i>
+                    <h5>ربات تلگرام</h5>
+                    <p class="text-muted">مدیریت ربات</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <a href="https://t.me/leili9772r" target="_blank" class="text-decoration-none">
+            <div class="card quick-link-card h-100 border-danger">
+                <div class="card-body text-center">
+                    <i class="fas fa-headset fa-3x text-danger mb-3"></i>
+                    <h5>پشتیبانی</h5>
+                    <p class="text-muted">تماس با پشتیبانی</p>
                 </div>
             </div>
         </a>
@@ -110,10 +158,13 @@
 
 <!-- Recent Orders -->
 <div class="card">
-    <div class="card-header bg-dark text-white">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
             <i class="fas fa-clock me-2"></i>آخرین سفارشات
         </h5>
+        <a href="{{ url_for('admin_orders') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>مشاهده همه
+        </a>
     </div>
     <div class="card-body">
         {% if recent_orders %}
@@ -123,7 +174,6 @@
                     <tr>
                         <th>#</th>
                         <th>کاربر</th>
-                        <th>کانفیگ</th>
                         <th>مبلغ</th>
                         <th>وضعیت</th>
                         <th>تاریخ</th>
@@ -134,7 +184,6 @@
                     <tr>
                         <td>{{ order.id }}</td>
                         <td>{{ order.user.username }}</td>
-                        <td>{{ order.config.name }}</td>
                         <td>{{ order.amount|toLocaleString }} تومان</td>
                         <td>
                             {% if order.status == 'pending' %}
@@ -159,6 +208,57 @@
             <p class="text-muted">هنوز سفارشی ثبت نشده است</p>
         </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- System Info -->
+<div class="row mt-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>اطلاعات سیستم</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="d-flex justify-content-between py-2 border-bottom">
+                        <span><i class="fas fa-server me-2"></i>سرور</span>
+                        <span class="text-muted">Cloudflare Tunnel</span>
+                    </li>
+                    <li class="d-flex justify-content-between py-2 border-bottom">
+                        <span><i class="fas fa-database me-2"></i>دیتابیس</span>
+                        <span class="text-muted">SQLite</span>
+                    </li>
+                    <li class="d-flex justify-content-between py-2 border-bottom">
+                        <span><i class="fab fa-github me-2"></i>مخزن کانفیگ</span>
+                        <span class="text-muted">GitHub</span>
+                    </li>
+                    <li class="d-flex justify-content-between py-2">
+                        <span><i class="fab fa-telegram me-2"></i>ربات</span>
+                        <span class="text-muted">@V2rayshopiran_bot</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0"><i class="fas fa-link me-2"></i>لینک‌های مفید</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="https://github.com/aminxparsaa/v2ray-configs" target="_blank" class="btn btn-outline-dark">
+                        <i class="fab fa-github me-2"></i>مشاهده کانفیگ‌ها در GitHub
+                    </a>
+                    <a href="https://github.com/aminxparsaa/v2ray-shop" target="_blank" class="btn btn-outline-dark">
+                        <i class="fab fa-github me-2"></i>کد منبع سایت
+                    </a>
+                    <a href="https://t.me/V2rayshopiran_bot" target="_blank" class="btn btn-outline-primary">
+                        <i class="fab fa-telegram me-2"></i>ربات تلگرام
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

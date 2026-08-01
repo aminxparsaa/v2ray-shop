@@ -41,10 +41,33 @@
                     </li>
                     {% endif %}
                     {% if current_user.is_authenticated and current_user.is_admin %}
-                    <li class="nav-item">
-                        <a class="nav-link text-warning" href="{{ url_for('admin_dashboard') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-warning" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-cog me-1"></i>پنل مدیریت
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">
+                                <i class="fas fa-tachometer-alt me-2"></i>داشبورد
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_configs') }}">
+                                <i class="fas fa-box me-2"></i>مدیریت کانفیگ‌ها
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_config_new') }}">
+                                <i class="fas fa-plus me-2"></i>افزودن کانفیگ
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
+                                <i class="fas fa-users me-2"></i>مدیریت کاربران
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_orders') }}">
+                                <i class="fas fa-shopping-bag me-2"></i>مدیریت سفارشات
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_payment_settings') }}">
+                                <i class="fas fa-credit-card me-2"></i>تنظیمات پرداخت
+                            </a></li>
+                        </ul>
                     </li>
                     {% endif %}
                 </ul>
